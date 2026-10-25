@@ -7,14 +7,14 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -23,16 +23,16 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Generate Files and Build APK
-        shell: python
         run: |
-          import os, subprocess
+          python3 - << 'PYEOF'
+          import os
 
           os.makedirs("app/src/main/java/com/zerophone/vault", exist_ok=True)
           os.makedirs("app/src/main/res/values", exist_ok=True)
 
           files = {}
 
-          files["settings.gradle"] = """pluginManagement {
+          files["settings.gradle"] = r'''pluginManagement {
               repositories {
                   google()
                   mavenCentral()
@@ -48,21 +48,21 @@ jobs:
           }
           rootProject.name = "ZeroPhoneVault"
           include ':app'
-          """
+          '''
 
-          files["build.gradle"] = """plugins {
+          files["build.gradle"] = r'''plugins {
               id 'com.android.application' version '8.2.0' apply false
               id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
           }
-          """
+          '''
 
-          files["gradle.properties"] = """org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          files["gradle.properties"] = r'''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
           android.useAndroidX=true
           kotlin.code.style=official
           android.nonTransitiveRClass=true
-          """
+          '''
 
-          files["app/build.gradle"] = """plugins {
+          files["app/build.gradle"] = r'''plugins {
               id 'com.android.application'
               id 'org.jetbrains.kotlin.android'
           }
@@ -98,9 +98,9 @@ jobs:
               implementation 'androidx.appcompat:appcompat:1.6.1'
               implementation 'com.google.android.material:material:1.11.0'
           }
-          """
+          '''
 
-          files["app/src/main/AndroidManifest.xml"] = """<?xml version="1.0" encoding="utf-8"?>
+          files["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android"
               xmlns:tools="http://schemas.android.com/tools">
 
@@ -128,9 +128,9 @@ jobs:
                   </activity>
               </application>
           </manifest>
-          """
+          '''
 
-          files["app/src/main/java/com/zerophone/vault/MainActivity.kt"] = """package com.zerophone.vault
+          files["app/src/main/java/com/zerophone/vault/MainActivity.kt"] = r'''package com.zerophone.vault
 
           import android.app.AppOpsManager
           import android.app.usage.UsageStatsManager
@@ -229,7 +229,7 @@ jobs:
                   }
 
                   val sub = TextView(this).apply {
-                      text = "\\nApne Aaj Ke Waqt Ki Keemat Tay Karein\\n\\n• WhatsApp Active Limit : 2 Hours Free\\n  (Quick reply <30s count nahi hoga)\\n\\n• Reels / Vault Limit : 1 Hour Free\\n  (Instagram, YouTube, FB, Chrome)\\n"
+                      text = "\nApne Aaj Ke Waqt Ki Keemat Tay Karein\n\n• WhatsApp Active Limit : 2 Hours Free\n  (Quick reply <30s count nahi hoga)\n\n• Reels / Vault Limit : 1 Hour Free\n  (Instagram, YouTube, FB, Chrome)\n"
                       textSize = 15f
                       setTextColor(Color.LTGRAY)
                   }
@@ -320,7 +320,7 @@ jobs:
                   }
 
                   val statusBox = TextView(this).apply {
-                      text = "⏳ VAULT LEFT : ${vaultLeft}m / ${vaultAllowed}m\\n🟢 WHATSAPP   : ${waLeft}m / ${waAllowed}m\\n💸 PENALTY TIER: ₹$penaltyAmt"
+                      text = "⏳ VAULT LEFT : ${vaultLeft}m / ${vaultAllowed}m\n🟢 WHATSAPP   : ${waLeft}m / ${waAllowed}m\n💸 PENALTY TIER: ₹$penaltyAmt"
                       textSize = 14f
                       typeface = Typeface.MONOSPACE
                       setTextColor(if (vaultLeft == 0) Color.parseColor("#FF5252") else Color.parseColor("#69F0AE"))
@@ -391,7 +391,7 @@ jobs:
                   root.addView(btnVault)
 
                   val btnTestLock = TextView(this).apply {
-                      text = "\\n[ ⚡ Tap Here to Test Lock / Penalty Screen Now ]"
+                      text = "\n[ ⚡ Tap Here to Test Lock / Penalty Screen Now ]"
                       textSize = 13f
                       setTextColor(Color.parseColor("#FFD740"))
                       gravity = Gravity.CENTER
@@ -402,7 +402,7 @@ jobs:
                   root.addView(btnTestLock)
 
                   val btnUninstall = TextView(this).apply {
-                      text = "\\n[ ⚠️ Exit / Uninstall Gatekeeper ]"
+                      text = "\n[ ⚠️ Exit / Uninstall Gatekeeper ]"
                       textSize = 12f
                       setTextColor(Color.DKGRAY)
                       gravity = Gravity.CENTER
@@ -435,7 +435,7 @@ jobs:
                   }
 
                   val title = TextView(this).apply {
-                      text = "🛑 TIME OVER BHAI!\\n\\n$lockedTarget\\nkhatam ho chuka hai."
+                      text = "🛑 TIME OVER BHAI!\n\n$lockedTarget\nkhatam ho chuka hai."
                       textSize = 22f
                       setTextColor(Color.WHITE)
                       typeface = Typeface.DEFAULT_BOLD
@@ -491,20 +491,20 @@ jobs:
                   }
 
                   val header = TextView(this).apply {
-                      text = "🆘 EMERGENCY UNLOCK (+15 MINS)\\nComplete ANY ONE task below:"
+                      text = "🆘 EMERGENCY UNLOCK (+15 MINS)\nComplete ANY ONE task below:"
                       textSize = 19f
                       setTextColor(Color.parseColor("#FFD740"))
                       typeface = Typeface.DEFAULT_BOLD
                   }
 
                   tvStepCounter = TextView(this).apply {
-                      text = "\\n🚶‍♂️ TASK 1: WALK 500 STEPS\\nLive Pedometer: 0 / 500 Steps\\n(Walk holding phone to unlock automatically)\\n"
+                      text = "\n🚶‍♂️ TASK 1: WALK 500 STEPS\nLive Pedometer: 0 / 500 Steps\n(Walk holding phone to unlock automatically)\n"
                       textSize = 17f
                       setTextColor(Color.parseColor("#69F0AE"))
                   }
 
                   val essayLabel = TextView(this).apply {
-                      text = "✍️ TASK 2: TYPE 500 WORDS ESSAY\\n(Copy-Paste Disabled! Write why this is urgent): 0 / 500 words"
+                      text = "✍️ TASK 2: TYPE 500 WORDS ESSAY\n(Copy-Paste Disabled! Write why this is urgent): 0 / 500 words"
                       textSize = 15f
                       setTextColor(Color.WHITE)
                   }
@@ -543,7 +543,7 @@ jobs:
                               Toast.makeText(this@MainActivity, "Copy-Paste Allowed Nahi Hai!", Toast.LENGTH_SHORT).show()
                               return
                           }
-                          val words = s.toString().trim().split("\\\\s+".toRegex()).filter { it.isNotEmpty() }.size
+                          val words = s.toString().trim().split("\\s+".toRegex()).filter { it.isNotEmpty() }.size
                           essayLabel.text = "✍️ TASK 2: TYPE 500 WORDS ESSAY: $words / 500 words"
                           if (words >= 500) {
                               btnUnlockEssay.isEnabled = true
@@ -577,7 +577,7 @@ jobs:
               override fun onSensorChanged(event: SensorEvent?) {
                   if (event?.sensor?.type == Sensor.TYPE_STEP_DETECTOR) {
                       emergencyStepsWalked++
-                      tvStepCounter?.text = "\\n🚶‍♂️ TASK 1: WALK 500 STEPS\\nLive Pedometer: $emergencyStepsWalked / 500 Steps\\n"
+                      tvStepCounter?.text = "\n🚶‍♂️ TASK 1: WALK 500 STEPS\nLive Pedometer: $emergencyStepsWalked / 500 Steps\n"
                       if (emergencyStepsWalked >= 500) {
                           sensorManager?.unregisterListener(this)
                           grantExtraTime(15, false)
@@ -595,7 +595,7 @@ jobs:
                   }
 
                   val info = TextView(this).apply {
-                      text = "⚠️ UNINSTALL ZEROPHONE VAULT?\\n\\nKya aap haar maan rahe hain?\\nNiyam ke mutabiq aapke paas 2 raste hain:\\n\\n1. FREE COOLING PERIOD:\\nKal subah 7:00 AM tak intezaar karein.\\n\\n2. INSTANT EXIT FEE (₹99):\\nAbhi contract todne ke liye ₹99 pay karein."
+                      text = "⚠️ UNINSTALL ZEROPHONE VAULT?\n\nKya aap haar maan rahe hain?\nNiyam ke mutabiq aapke paas 2 raste hain:\n\n1. FREE COOLING PERIOD:\nKal subah 7:00 AM tak intezaar karein.\n\n2. INSTANT EXIT FEE (₹99):\nAbhi contract todne ke liye ₹99 pay karein."
                       textSize = 16f
                       setTextColor(Color.WHITE)
                   }
@@ -722,14 +722,16 @@ jobs:
                   renderScreen2MinimalistHome()
               }
           }
-          """
+          '''
 
           for path, content in files.items():
               with open(path, "w") as f:
                   f.write(content.strip() + "\n")
+          PYEOF
 
-          subprocess.run("wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip && unzip -q gradle-8.4-bin.zip", shell=True, check=True)
-          subprocess.run("./gradle-8.4/bin/gradle assembleDebug --no-daemon", shell=True, check=True)
+          wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+          unzip -q gradle-8.4-bin.zip
+          ./gradle-8.4/bin/gradle assembleDebug --no-daemon --stacktrace
 
       - name: Upload Ready APK
         uses: actions/upload-artifact@v4
