@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -19,219 +19,113 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Generate Project & Compile APK
+      - name: Create Project Files
+        shell: python3 {0}
         run: |
-          python3 - << 'PYEOF'
-          import os
+          import os, subprocess
 
-          # 1. Directly write Android SDK License hash (No sdkmanager needed!)
-          sdk_root = os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk")
-          lic_dir = os.path.join(sdk_root, "licenses")
-          os.makedirs(lic_dir, exist_ok=True)
-          with open(os.path.join(lic_dir, "android-sdk-license"), "w") as f:
-              f.write("\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n")
+          sdk = os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk")
+          os.makedirs(f"{sdk}/licenses", exist_ok=True)
+          open(f"{sdk}/licenses/android-sdk-license", "w").write("\n8933bad161af4178b1185d1a37fbf41ea5269c55\nd56f5187479451eabf01fb78af6dfcb131a6481e\n24333f8a63b6825ea9c5514f83c2829b004d1fee\n")
 
-          # 2. Create App Directories
           os.makedirs("app/src/main/java/com/zerophone/vault", exist_ok=True)
-          os.makedirs("app/src/main/res/values", exist_ok=True)
 
-          files = {}
+          open("settings.gradle", "w").write("pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\ndependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }\nrootProject.name = 'ZeroPhoneVault'\ninclude ':app'\n")
 
-          files["settings.gradle"] = r'''pluginManagement {
-              repositories {
-                  google()
-                  mavenCentral()
-                  gradlePluginPortal()
-              }
-          }
-          dependencyResolutionManagement {
-              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          rootProject.name = "ZeroPhoneVault"
-          include ':app'
-          '''
+          open("build.gradle", "w").write("plugins { id 'com.android.application' version '8.2.0' apply false; id 'org.jetbrains.kotlin.android' version '1.9.20' apply false }\n")
 
-          files["build.gradle"] = r'''plugins {
-              id 'com.android.application' version '8.2.0' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.20' apply false
-          }
-          '''
+          open("gradle.properties", "w").write("org.gradle.jvmargs=-Xmx2048m\nandroid.useAndroidX=true\n")
 
-          files["gradle.properties"] = r'''org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          android.useAndroidX=true
-          kotlin.code.style=official
-          android.nonTransitiveRClass=true
-          '''
+          open("app/build.gradle", "w").write("plugins { id 'com.android.application'; id 'org.jetbrains.kotlin.android' }\nandroid {\n namespace 'com.zerophone.vault'\n compileSdk 34\n defaultConfig { applicationId 'com.zerophone.vault'; minSdk 26; targetSdk 34; versionCode 1; versionName '1.0' }\n compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }\n kotlinOptions { jvmTarget = '17' }\n}\ndependencies {\n implementation 'androidx.core:core-ktx:1.12.0'\n implementation 'androidx.appcompat:appcompat:1.6.1'\n implementation 'com.google.android.material:material:1.11.0'\n}\n")
 
-          files["app/build.gradle"] = r'''plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
+          open("app/src/main/AndroidManifest.xml", "w").write("<?xml version='1.0' encoding='utf-8'?>\n<manifest xmlns:android='http://schemas.android.com/apk/res/android' xmlns:tools='http://schemas.android.com/tools'>\n <uses-permission android:name='android.permission.PACKAGE_USAGE_STATS' tools:ignore='ProtectedPermissions'/>\n <uses-permission android:name='android.permission.ACTIVITY_RECOGNITION'/>\n <uses-permission android:name='android.permission.QUERY_ALL_PACKAGES' tools:ignore='QueryAllPackagesPermission'/>\n <application android:label='ZeroPhone Vault' android:theme='@style/Theme.AppCompat.NoActionBar'>\n  <activity android:name='.MainActivity' android:exported='true' android:launchMode='singleTask'>\n   <intent-filter>\n    <action android:name='android.intent.action.MAIN'/>\n    <category android:name='android.intent.category.HOME'/>\n    <category android:name='android.intent.category.DEFAULT'/>\n    <category android:name='android.intent.category.LAUNCHER'/>\n   </intent-filter>\n  </activity>\n </application>\n</manifest>\n")
 
-          android {
-              namespace 'com.zerophone.vault'
-              compileSdk 34
+          kt = [
+              "package com.zerophone.vault",
+              "import android.app.AppOpsManager; import android.app.usage.UsageStatsManager; import android.content.*; import android.graphics.*; import android.hardware.*; import android.net.Uri; import android.os.*; import android.provider.*; import android.text.*; import android.view.*; import android.widget.*; import androidx.activity.OnBackPressedCallback; import androidx.appcompat.app.AlertDialog; import androidx.appcompat.app.AppCompatActivity; import java.util.Calendar",
+              "class MainActivity : AppCompatActivity(), SensorEventListener {",
+              " private lateinit var prefs: SharedPreferences; private var sm: SensorManager? = null; private var stepSensor: Sensor? = null; private var steps = 0; private var tvStep: TextView? = null",
+              " private val badApps = listOf(\"com.instagram.android\",\"com.google.android.youtube\",\"com.facebook.katana\",\"com.snapchat.android\",\"com.android.chrome\",\"in.mohalla.video\")",
+              " override fun onCreate(s: Bundle?) { super.onCreate(s); prefs = getSharedPreferences(\"ZP\", MODE_PRIVATE); sm = getSystemService(SENSOR_SERVICE) as SensorManager; stepSensor = sm?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR); onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) { override fun handleOnBackPressed() { route() } }); route() }",
+              " override fun onResume() { super.onResume(); route() }",
+              " private fun today() = Calendar.getInstance().let { \"${it.get(Calendar.YEAR)}-${it.get(Calendar.DAY_OF_YEAR)}\" }",
+              " private fun route() { if (prefs.getString(\"day\",\"\") != today()) screen1Contract() else screen2Home() }",
+              " private fun btn(t: String, bg: String, c: () -> Unit) = Button(this).apply { text = t; setBackgroundColor(Color.parseColor(bg)); setTextColor(Color.WHITE); setPadding(0,28,0,28); setOnClickListener { c() } }",
+              " private fun item(t: String, c: () -> Unit) = TextView(this).apply { text = t; textSize = 21f; setTextColor(Color.WHITE); setPadding(16,32,16,32); setOnClickListener { c() } }",
+              " private fun screen1Contract() {",
+              "  val r = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); setPadding(64,90,64,64) }",
+              "  r.addView(TextView(this).apply { text = \"🛡️ ZEROPHONE VAULT\\nMorning Contract\"; textSize = 24f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD })",
+              "  r.addView(TextView(this).apply { text = \"\\n• WhatsApp Limit: 2 Hrs Free (<30s reply free)\\n• Reels/Vault Limit: 1 Hr Free\\n\\nSelect Penalty Amount:\"; textSize = 15f; setTextColor(Color.LTGRAY) })",
+              "  var pen = 49; val rg = RadioGroup(this).apply { orientation = RadioGroup.HORIZONTAL }",
+              "  listOf(29,49,99).forEach { a -> rg.addView(RadioButton(this).apply { text = \" ₹$a   \"; textSize = 18f; setTextColor(Color.WHITE); isChecked = (a==49); setOnClickListener { pen = a } }) }; r.addView(rg)",
+              "  if (!hasPerm()) r.addView(btn(\"1. Grant Screen Time Permission\", \"#424242\") { startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) })",
+              "  r.addView(Space(this).apply { minimumHeight = 30 })",
+              "  r.addView(btn(\"🔒 LOCK MY PHONE FOR TODAY\", \"#D32F2F\") { if (!hasPerm()) startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) else { prefs.edit().putString(\"day\", today()).putInt(\"pen\", pen).putInt(\"b_v\",0).putInt(\"b_w\",0).apply(); screen2Home() } })",
+              "  setContentView(r)",
+              " }",
+              " private fun screen2Home() {",
+              "  val (vUsed, wUsed) = usage(); val vLeft = (60 + prefs.getInt(\"b_v\",0) - vUsed).coerceAtLeast(0); val wLeft = (120 + prefs.getInt(\"b_w\",0) - wUsed).coerceAtLeast(0); val pen = prefs.getInt(\"pen\",49)",
+              "  val sc = ScrollView(this).apply { setBackgroundColor(Color.BLACK) }; val r = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(64,80,64,64) }",
+              "  r.addView(TextView(this).apply { text = \"⏳ VAULT LEFT : ${vLeft}m / 60m\\n🟢 WHATSAPP   : ${wLeft}m / 120m\\n💸 PENALTY    : ₹$pen\"; textSize = 14f; typeface = Typeface.MONOSPACE; setTextColor(Color.parseColor(\"#69F0AE\")); setBackgroundColor(Color.parseColor(\"#161616\")); setPadding(36,32,36,32) })",
+              "  r.addView(item(\"1. 📞  Call\") { startActivity(Intent(Intent.ACTION_DIAL)) })",
+              "  r.addView(item(\"2. 💬  Messages\") { val p = Telephony.Sms.getDefaultSmsPackage(this); val i = packageManager.getLaunchIntentForPackage(p ?: \"\"); if (i != null) startActivity(i) })",
+              "  r.addView(item(if (wLeft>0) \"3. 🟢  WhatsApp [${wLeft}m]\" else \"3. 🔒  WhatsApp [LOCKED]\") { if (wLeft>0) launch(\"com.whatsapp\") else screen4Lock(\"WhatsApp 2-Hr Limit\", true) })",
+              "  r.addView(item(\"4. 💸  UPI Pay\") { upiApp() })",
+              "  val fn = prefs.getString(\"fn\", null); val fb = item(if (fn!=null) \"5. ⭐  $fn (Hold to change)\" else \"5. ➕  Add 5th Essential App\") { val fp = prefs.getString(\"fp\",null); if (fp==null) picker(true) else launch(fp) }",
+              "  fb.setOnLongClickListener { picker(true); true }; r.addView(fb)",
+              "  r.addView(TextView(this).apply { text = \"\\n🔕 Silent Notification Digest (Unlocks 8 PM)\\n\"; textSize = 13f; setTextColor(Color.GRAY) })",
+              "  r.addView(btn(if (vLeft>0) \"🔐 Open All Apps Vault (${vLeft}m left)\" else \"🛑 Vault Locked! Pay ₹$pen\", if (vLeft>0) \"#212121\" else \"#B71C1C\") { if (vLeft>0) picker(false) else screen4Lock(\"1-Hr Reels Vault\", false) })",
+              "  r.addView(TextView(this).apply { text = \"\\n[ ⚡ Tap to Test Penalty Lock Screen ]\"; textSize = 13f; setTextColor(Color.YELLOW); gravity = Gravity.CENTER; setOnClickListener { screen4Lock(\"Demo Test Lock\", false) } })",
+              "  r.addView(TextView(this).apply { text = \"\\n[ ⚠️ Uninstall Gatekeeper ]\"; textSize = 12f; setTextColor(Color.GRAY); gravity = Gravity.CENTER; setOnClickListener { screen6Exit() } })",
+              "  sc.addView(r); setContentView(sc)",
+              " }",
+              " private fun screen4Lock(t: String, isWa: Boolean) {",
+              "  val pen = prefs.getInt(\"pen\",49); val r = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.parseColor(\"#1A0000\")); setPadding(64,120,64,64); gravity = Gravity.CENTER }",
+              "  r.addView(TextView(this).apply { text = \"🛑 TIME OVER!\\n$t khatam ho gaya.\"; textSize = 22f; setTextColor(Color.WHITE); gravity = Gravity.CENTER })",
+              "  r.addView(Space(this).apply { minimumHeight = 60 }); r.addView(btn(\"🏠 Back to Home (₹0)\", \"#2E7D32\") { screen2Home() })",
+              "  r.addView(Space(this).apply { minimumHeight = 30 }); r.addView(btn(\"⚡ Pay ₹$pen via UPI (+30m)\", \"#E65100\") { payUpi(pen, isWa) })",
+              "  r.addView(Space(this).apply { minimumHeight = 30 }); r.addView(btn(\"🆘 Emergency Task (500 Steps/Words)\", \"#424242\") { screen5Task(isWa) })",
+              "  setContentView(r)",
+              " }",
+              " private fun screen5Task(isWa: Boolean) {",
+              "  steps = 0; stepSensor?.let { sm?.registerListener(this, it, SensorManager.SENSOR_DELAY_UI) }",
+              "  val sc = ScrollView(this).apply { setBackgroundColor(Color.BLACK) }; val r = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(56,80,56,56) }",
+              "  tvStep = TextView(this).apply { text = \"🚶‍♂️ TASK 1: WALK 500 STEPS\\nLive Pedometer: 0 / 500\\n\"; textSize = 18f; setTextColor(Color.GREEN) }; r.addView(tvStep)",
+              "  val lbl = TextView(this).apply { text = \"✍️ TASK 2: TYPE 500 WORDS (No Paste): 0 / 500\"; textSize = 15f; setTextColor(Color.WHITE) }; r.addView(lbl)",
+              "  val bUnlock = btn(\"🔒 Complete 500 Words to Unlock\", \"#424242\") { unlock(15, isWa) }.apply { isEnabled = false }",
+              "  val ed = EditText(this).apply { setTextColor(Color.WHITE); setBackgroundColor(Color.parseColor(\"#1E1E1E\")); minLines = 5; addTextChangedListener(object : TextWatcher { override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}; override fun afterTextChanged(s: Editable?) {}; override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) { if (c - b > 25) { setText(\"\"); Toast.makeText(context, \"No Copy-Paste!\", Toast.LENGTH_SHORT).show(); return }; val w = s.toString().trim().split(\"\\\\s+\".toRegex()).filter { it.isNotEmpty() }.size; lbl.text = \"✍️ Words: $w / 500\"; if (w >= 500) { bUnlock.isEnabled = true; bUnlock.text = \"✅ UNLOCK NOW\" } } }) }",
+              "  r.addView(ed); r.addView(Space(this).apply { minimumHeight = 24 }); r.addView(bUnlock); r.addView(Space(this).apply { minimumHeight = 24 }); r.addView(btn(\"← Back\", \"#212121\") { sm?.unregisterListener(this); screen2Home() })",
+              "  sc.addView(r); setContentView(sc)",
+              " }",
+              " override fun onSensorChanged(e: SensorEvent?) { if (e?.sensor?.type == Sensor.TYPE_STEP_DETECTOR) { steps++; tvStep?.text = \"🚶‍♂️ STEPS: $steps / 500\\n\"; if (steps >= 500) { sm?.unregisterListener(this); unlock(15, false) } } }",
+              " override fun onAccuracyChanged(s: Sensor?, a: Int) {}",
+              " private fun screen6Exit() {",
+              "  val r = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); setPadding(64,100,64,64) }",
+              "  r.addView(TextView(this).apply { text = \"⚠️ UNINSTALL GATEKEEPER\\n\\n1. Free: Wait Until Tomorrow 7 AM\\n2. Instant Exit: Pay ₹99 Penalty\\n\"; textSize = 17f; setTextColor(Color.WHITE) })",
+              "  r.addView(btn(\"⏳ Wait Until Tomorrow 7 AM (Free)\", \"#2E7D32\") { Toast.makeText(this, \"Unlocks at 7 AM!\", Toast.LENGTH_LONG).show(); screen2Home() })",
+              "  r.addView(Space(this).apply { minimumHeight = 24 }); r.addView(btn(\"💸 Pay ₹99 & Open Settings\", \"#B71C1C\") { payUpi(99, false); startActivity(Intent(Settings.ACTION_HOME_SETTINGS)) })",
+              "  setContentView(r)",
+              " }",
+              " private fun hasPerm() = (getSystemService(APP_OPS_SERVICE) as AppOpsManager).checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), packageName) == AppOpsManager.MODE_ALLOWED",
+              " private fun usage(): Pair<Int,Int> { if (!hasPerm()) return 0 to 0; val usm = getSystemService(USAGE_STATS_SERVICE) as UsageStatsManager; val cal = Calendar.getInstance().apply { set(Calendar.HOUR_OF_DAY,0); set(Calendar.MINUTE,0) }; var v = 0L; var w = 0L; usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, cal.timeInMillis, System.currentTimeMillis()).forEach { if (it.packageName==\"com.whatsapp\" && it.totalTimeInForeground>30000L) w += it.totalTimeInForeground else if (badApps.contains(it.packageName)) v += it.totalTimeInForeground }; return (v/60000L).toInt() to (w/60000L).toInt() }",
+              " private fun picker(ess: Boolean) { val apps = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER),0).filter { val p = it.activityInfo.packageName; if (ess) !badApps.contains(p) && p!=packageName else p!=packageName }; AlertDialog.Builder(this).setTitle(if (ess) \"Select 5th App\" else \"Vault Apps\").setItems(apps.map { it.loadLabel(packageManager).toString() }.toTypedArray()) { _, i -> val p = apps[i].activityInfo.packageName; val n = apps[i].loadLabel(packageManager).toString(); if (ess) { prefs.edit().putString(\"fp\",p).putString(\"fn\",n).apply(); screen2Home() } else launch(p) }.show() }",
+              " private fun upiApp() { listOf(\"com.google.android.apps.nbu.paisa.user\",\"com.phonepe.app\",\"net.one97.paytm\",\"in.org.npci.upiapp\").forEach { packageManager.getLaunchIntentForPackage(it)?.let { i -> startActivity(i); return } }; Toast.makeText(this, \"No UPI App found\", Toast.LENGTH_SHORT).show() }",
+              " private fun launch(p: String) { packageManager.getLaunchIntentForPackage(p)?.let { startActivity(it) } ?: Toast.makeText(this, \"App not installed\", Toast.LENGTH_SHORT).show() }",
+              " private fun payUpi(amt: Int, isWa: Boolean) { try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(\"upi://pay?pa=your-merchant-upi@okaxis&pn=ZeroPhoneVault&am=$amt.00&cu=INR\"))); unlock(30, isWa) } catch (e: Exception) { Toast.makeText(this, \"UPI App not found\", Toast.LENGTH_SHORT).show() } }",
+              " private fun unlock(m: Int, isWa: Boolean) { val k = if (isWa) \"b_w\" else \"b_v\"; prefs.edit().putInt(k, prefs.getInt(k,0)+m).apply(); screen2Home() }",
+              "}"
+          ]
+          open("app/src/main/java/com/zerophone/vault/MainActivity.kt", "w").write("\n".join(kt) + "\n")
 
-              defaultConfig {
-                  applicationId "com.zerophone.vault"
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName "1.0"
-              }
+      - name: Compile Debug APK with Gradle
+        run: |
+          wget -q https://services.gradle.org/distributions/gradle-8.4-bin.zip
+          unzip -q gradle-8.4-bin.zip
+          ./gradle-8.4/bin/gradle assembleDebug --no-daemon
 
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                  }
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions {
-                  jvmTarget = '17'
-              }
-          }
-
-          dependencies {
-              implementation 'androidx.core:core-ktx:1.12.0'
-              implementation 'androidx.appcompat:appcompat:1.6.1'
-              implementation 'com.google.android.material:material:1.11.0'
-          }
-          '''
-
-          files["app/src/main/AndroidManifest.xml"] = r'''<?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:tools="http://schemas.android.com/tools">
-
-              <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
-              <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
-              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-
-              <application
-                  android:allowBackup="true"
-                  android:label="ZeroPhone Vault"
-                  android:supportsRtl="true"
-                  android:theme="@style/Theme.AppCompat.NoActionBar">
-
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:launchMode="singleTask"
-                      android:stateNotNeeded="true">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN" />
-                          <category android:name="android.intent.category.HOME" />
-                          <category android:name="android.intent.category.DEFAULT" />
-                          <category android:name="android.intent.category.LAUNCHER" />
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          '''
-
-          files["app/src/main/java/com/zerophone/vault/MainActivity.kt"] = r'''package com.zerophone.vault
-
-          import android.app.AppOpsManager
-          import android.app.usage.UsageStatsManager
-          import android.content.Context
-          import android.content.Intent
-          import android.graphics.Color
-          import android.graphics.Typeface
-          import android.hardware.Sensor
-          import android.hardware.SensorEvent
-          import android.hardware.SensorEventListener
-          import android.hardware.SensorManager
-          import android.net.Uri
-          import android.os.Bundle
-          import android.os.Process
-          import android.provider.Settings
-          import android.provider.Telephony
-          import android.text.Editable
-          import android.text.InputType
-          import android.text.TextWatcher
-          import android.view.ActionMode
-          import android.view.Gravity
-          import android.view.Menu
-          import android.view.MenuItem
-          import android.widget.*
-          import androidx.activity.OnBackPressedCallback
-          import androidx.appcompat.app.AlertDialog
-          import androidx.appcompat.app.AppCompatActivity
-          import java.util.Calendar
-
-          class MainActivity : AppCompatActivity(), SensorEventListener {
-
-              private lateinit var prefs: android.content.SharedPreferences
-              private var sensorManager: SensorManager? = null
-              private var stepSensor: Sensor? = null
-              private var emergencyStepsWalked = 0
-              private var tvStepCounter: TextView? = null
-
-              private val addictiveApps = listOf(
-                  "com.instagram.android",
-                  "com.google.android.youtube",
-                  "com.facebook.katana",
-                  "com.snapchat.android",
-                  "com.android.chrome",
-                  "in.mohalla.video"
-              )
-
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  prefs = getSharedPreferences("ZeroPhonePrefs", Context.MODE_PRIVATE)
-                  sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-                  stepSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
-
-                  onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
-                      override fun handleOnBackPressed() {
-                          showHomeOrContract()
-                      }
-                  })
-
-                  showHomeOrContract()
-              }
-
-              override fun onResume() {
-                  super.onResume()
-                  showHomeOrContract()
-              }
-
-              private fun showHomeOrContract() {
-                  val todayKey = getTodayDateKey()
-                  val lockedDate = prefs.getString("contract_date", "")
-                  if (lockedDate != todayKey) {
-                      renderScreen1MorningContract()
-                  } else {
-                      renderScreen2MinimalistHome()
-                  }
-              }
-
-              private fun getTodayDateKey(): String {
-                  val cal = Calendar.getInstance()
-                  return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
-              }
-
-              private fun renderScreen1MorningContract() {
-                  val root = LinearLayout(this).apply {
-                      orientation = LinearLayout.VERTICAL
-                      setBackgroundColor(Color.BLACK)
-                      setPadding(64, 100, 64, 64)
-                      gravity = Gravity.CENTER_VERTICAL
-                  }
-
-                  val title = TextView(this).apply {
-                      text = "🛡️ ZEROPHONE VAULT"
-                      textSize = 26f
-                      setTextColor(Color.WHITE)
-                      typeface = Typeface.DEFAULT_BOLD
-                      gravity = Gravity.CENTER
-                  }
-
-                  val sub = TextView(this).apply {
-                      text = "\nApne Aaj Ke Waqt Ki Keemat Tay Karein\n\n• WhatsApp Active Limit : 2 Hours Free\n  (Quick reply <30s count nahi hoga)\n\n• Reels / Vault Limit : 1 Hour Free\n  (Instagram, YouTube, FB,
+      - name: Upload Ready APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZeroPhoneVault-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          
